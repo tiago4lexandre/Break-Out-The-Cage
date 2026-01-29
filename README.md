@@ -1,4 +1,46 @@
-# Break-Out-The-Cage
+<!-- ===================================== -->
+<!--   Break Out The Cage — TryHackMe      -->
+<!-- ===================================== -->
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Status-Developed-success?style=for-the-badge">
+  <img src="https://img.shields.io/badge/Topic-Linux%20Privilege%20Escalation-critical?style=for-the-badge">
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Pentest-Offensive-red?style=flat-square">
+  <img src="https://img.shields.io/badge/Linux-OS-black?style=flat-square&logo=linux&logoColor=white">
+  <img src="https://img.shields.io/badge/Web-Enumeration-blue?style=flat-square">
+  <img src="https://img.shields.io/badge/Cryptography-Analysis-purple?style=flat-square">
+  <img src="https://img.shields.io/badge/Post--Exploitation-Advanced-critical?style=flat-square">
+</p>
+
+---
+
+# 🧪 Break Out The Cage — TryHackMe
+
+> Writeup técnico e totalmente documentado do laboratório **Break Out The Cage** da plataforma TryHackMe, com foco em **enumeração de serviços**, **criptoanálise**, **esteganografia**, **exploração de scripts inseguros** e **escalonamento de privilégios em sistemas Linux**, seguindo metodologia prática de **pentest em ambiente controlado**.
+
+---
+
+### 📌 Metadados
+
+- **Data:** 2026-01-23  
+- **Status:** `#developed`  
+- **Categoria:** Pentest · Linux Privilege Escalation  
+- **Plataforma:** TryHackMe  
+- **Ambiente:** Linux (Ubuntu 18.04)  
+
+---
+
+### 🏷️ Tags
+
+`#TryHackMe` `#LinuxPrivilegeEscalation` `#Pentest` `#PostExploitation`  
+`#Cryptography` `#Steganography` `#Enumeration` `#LinuxSecurity`  
+`#RedTeam` `#CTF` `#CyberSecurity`
+
+---
+
 ---
 # Introdução
 
